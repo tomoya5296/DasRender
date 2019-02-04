@@ -77,6 +77,10 @@ rtDeclareVariable(unsigned int,  pathtrace_ray_type, , );
 rtDeclareVariable(unsigned int,  pathtrace_shadow_ray_type, , );
 
 rtBuffer<float4, 2>              output_buffer;
+rtBuffer<float4, 2>              depth_buffer;
+rtBuffer<float4, 2>              texture_buffer;
+rtBuffer<float4, 2>              normal_buffer;
+rtBuffer<float4, 2>              shadow_buffer;
 rtBuffer<ParallelogramLight>     lights;
 
 
@@ -158,10 +162,18 @@ RT_PROGRAM void pathtrace_camera()
         float a = 1.0f / (float)frame_number;
         float3 old_color = make_float3(output_buffer[launch_index]);
         output_buffer[launch_index] = make_float4( lerp( old_color, pixel_color, a ), 1.0f );
+        depth_buffer[launch_index] = make_float4( lerp( old_color, pixel_color, a ), 1.0f );
+        texture_buffer[launch_index] = make_float4( lerp( old_color, pixel_color, a ), 1.0f );
+        normal_buffer[launch_index] = make_float4( lerp( old_color, pixel_color, a ), 1.0f );
+        shadow_buffer[launch_index] = make_float4( lerp( old_color, pixel_color, a ), 1.0f );
     }
     else
     {
         output_buffer[launch_index] = make_float4(pixel_color, 1.0f);
+        depth_buffer[launch_index] = make_float4(pixel_color, 1.0f);
+        texture_buffer[launch_index] = make_float4(pixel_color, 1.0f);
+        normal_buffer[launch_index] = make_float4(pixel_color, 1.0f);
+        shadow_buffer[launch_index] = make_float4(pixel_color, 1.0f);
     }
 }
 
@@ -287,6 +299,10 @@ RT_PROGRAM void shadow()
 RT_PROGRAM void exception()
 {
     output_buffer[launch_index] = make_float4(bad_color, 1.0f);
+    depth_buffer[launch_index] = make_float4(bad_color, 1.0f);
+    texture_buffer[launch_index] = make_float4(bad_color, 1.0f);
+    normal_buffer[launch_index] = make_float4(bad_color, 1.0f);
+    shadow_buffer[launch_index] = make_float4(bad_color, 1.0f);
 }
 
 

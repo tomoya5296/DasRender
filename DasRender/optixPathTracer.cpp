@@ -56,6 +56,8 @@
 #include <iostream>
 #include <stdint.h>
 
+#include "buffers.h"
+
 using namespace optix;
 
 const char* const SAMPLE_NAME = "DasRender";
@@ -67,12 +69,12 @@ const char* const SAMPLE_NAME = "DasRender";
 //------------------------------------------------------------------------------
 
 Context        context = 0;
-uint32_t       width  = 1024;
-uint32_t       height = 1024;
+uint32_t       width  = 512;
+uint32_t       height = 512;
 bool           use_pbo = true;
 
 int            frame_number = 1;
-int            sqrt_num_samples = 2;
+int            sqrt_num_samples = 10;
 int            rr_begin_depth = 1;
 Program        pgram_intersection = 0;
 Program        pgram_bounding_box = 0;
@@ -97,6 +99,7 @@ int            mouse_button;
 //------------------------------------------------------------------------------
 
 Buffer getOutputBuffer();
+Buffers & getOutputsBuffers();
 void destroyContext();
 void registerExitHandler();
 void createContext();
@@ -122,6 +125,17 @@ void glutResize( int w, int h );
 Buffer getOutputBuffer()
 {
     return context[ "output_buffer" ]->getBuffer();
+}
+
+Buffers & getOutputsBuffers()
+{
+	Buffers buffers;
+	buffers.output = context["output_buffer"]->getBuffer();
+	buffers.depth = context["depth_buffer"]->getBuffer();
+	buffers.texture = context["texture_buffer"]->getBuffer();
+	buffers.normal = context["normal_buffer"]->getBuffer();
+	buffers.shadow = context["shadow_buffer"]->getBuffer();
+	return buffers;
 }
 
 
@@ -197,8 +211,16 @@ void createContext()
     context[ "pathtrace_shadow_ray_type"      ]->setUint( 1u );
     context[ "rr_begin_depth"                 ]->setUint( rr_begin_depth );
 
-    Buffer buffer = sutil::createOutputBuffer( context, RT_FORMAT_FLOAT4, width, height, use_pbo );
-    context["output_buffer"]->set( buffer );
+	Buffer output = sutil::createOutputBuffer(context, RT_FORMAT_FLOAT4, width, height, use_pbo);
+	context["output_buffer"]->set(output);
+	Buffer depth = sutil::createOutputBuffer(context, RT_FORMAT_FLOAT4, width, height, use_pbo);
+	context["depth_buffer"]->set(depth);
+	Buffer texture = sutil::createOutputBuffer(context, RT_FORMAT_FLOAT4, width, height, use_pbo);
+	context["texture_buffer"]->set(texture);
+	Buffer normal = sutil::createOutputBuffer(context, RT_FORMAT_FLOAT4, width, height, use_pbo);
+	context["normal_buffer"]->set(normal);
+	Buffer shadow = sutil::createOutputBuffer(context, RT_FORMAT_FLOAT4, width, height, use_pbo);
+	context["shadow_buffer"]->set(shadow);
 
     // Setup programs
     const char *ptx = sutil::getPtxString( SAMPLE_NAME, "optixPathTracer.cu" );
@@ -623,7 +645,12 @@ int main( int argc, char** argv )
         {
             updateCamera();
             context->launch( 0, width, height );
-            sutil::displayBufferPPM( out_file.c_str(), getOutputBuffer(), false );
+			Buffers buffers = getOutputsBuffers();
+			sutil::displayBufferPPM((out_file + "_output.ppm").c_str(), buffers.output, false);
+			sutil::displayBufferPPM((out_file + "_depth.ppm").c_str(), buffers.depth, false);
+			sutil::displayBufferPPM((out_file + "_texture.ppm").c_str(), buffers.texture, false);
+			sutil::displayBufferPPM((out_file + "_normal.ppm").c_str(), buffers.normal, false);
+			sutil::displayBufferPPM((out_file + "_shadow.ppm").c_str(), buffers.shadow, false);
             destroyContext();
         }
 
