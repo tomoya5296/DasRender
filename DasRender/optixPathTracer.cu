@@ -41,7 +41,7 @@ struct PerRayData_pathtrace
     float3 direction;
     float3 shading_normal;
     unsigned int seed;
-    int depth;
+    int bounce;
     int countEmitted;
     int done;
     bool visibility;
@@ -74,7 +74,7 @@ rtDeclareVariable(float3,        W, , );
 rtDeclareVariable(float3,        bad_color, , );
 rtDeclareVariable(unsigned int,  frame_number, , );
 rtDeclareVariable(unsigned int,  sqrt_num_samples, , );
-rtDeclareVariable(unsigned int,  rr_begin_depth, , );
+rtDeclareVariable(unsigned int,  rr_begin_bounce, , );
 rtDeclareVariable(unsigned int,  pathtrace_ray_type, , );
 rtDeclareVariable(unsigned int,  pathtrace_shadow_ray_type, , );
 
@@ -119,7 +119,7 @@ RT_PROGRAM void pathtrace_camera()
         prd.countEmitted = true;
         prd.done = false;
         prd.seed = seed;
-        prd.depth = 0;
+        prd.bounce = 0;
 
         // Each iteration is a segment of the ray path.  The closest hit will
         // return new segments to be traced here.
@@ -132,14 +132,14 @@ RT_PROGRAM void pathtrace_camera()
             {
                 // We have hit the background or a luminaire
                 prd.result += prd.radiance * prd.attenuation;
-                if(prd.depth == 0){
+                if(prd.bounce == 0){
                     result_shading_normal += prd.shading_normal;
                 }
                 break;
             }
 
             // Russian roulette termination 
-            if(prd.depth >= rr_begin_depth)
+            if(prd.bounce >= rr_begin_bounce)
             {
                 float pcont = fmaxf(prd.attenuation);
                 if(rnd(prd.seed) >= pcont)
@@ -147,9 +147,9 @@ RT_PROGRAM void pathtrace_camera()
                 prd.attenuation /= pcont;
             }
 
-            prd.depth++;
+            prd.bounce++;
             prd.result += prd.radiance * prd.attenuation;
-            if(prd.depth == 1){
+            if(prd.bounce == 1){
                 result_shading_normal += prd.shading_normal;
             }
 

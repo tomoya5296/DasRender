@@ -75,7 +75,7 @@ bool           use_pbo = true;
 
 int            frame_number = 1;
 int            sqrt_num_samples = 2;
-int            rr_begin_depth = 1;
+int            rr_begin_bounce = 1;
 Program        pgram_intersection = 0;
 Program        pgram_bounding_box = 0;
 
@@ -209,7 +209,7 @@ void createContext()
     context[ "scene_epsilon"                  ]->setFloat( 1.e-3f );
     context[ "pathtrace_ray_type"             ]->setUint( 0u );
     context[ "pathtrace_shadow_ray_type"      ]->setUint( 1u );
-    context[ "rr_begin_depth"                 ]->setUint( rr_begin_depth );
+    context[ "rr_begin_bounce"                 ]->setUint( rr_begin_bounce );
 
 	Buffer output = sutil::createOutputBuffer(context, RT_FORMAT_FLOAT4, width, height, use_pbo);
 	context["output_buffer"]->set(output);
