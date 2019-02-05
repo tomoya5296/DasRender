@@ -46,7 +46,7 @@ struct PerRayData_pathtrace
     int bounce;
     int countEmitted;
     int done;
-    bool visibility;
+    bool inShadow;
 };
 
 struct PerRayData_pathtrace_shadow
@@ -101,6 +101,7 @@ RT_PROGRAM void pathtrace_camera()
     float3 result_shading_normal = make_float3(0.0f);
     float3 result_texture = make_float3(0.0f);
     float result_depth = 0.0f;
+    bool result_inShadow = false;
 
     unsigned int seed = tea<16>(screen.x*launch_index.y+launch_index.x, frame_number);
     do 
@@ -126,6 +127,7 @@ RT_PROGRAM void pathtrace_camera()
         prd.done = false;
         prd.seed = seed;
         prd.bounce = 0;
+        prd.inShadow = false;
 
         // Each iteration is a segment of the ray path.  The closest hit will
         // return new segments to be traced here.
@@ -142,6 +144,7 @@ RT_PROGRAM void pathtrace_camera()
                     result_shading_normal += prd.shading_normal;
                     result_texture += prd.texture;
                     result_depth += prd.depth;
+                    result_inShadow += prd.inShadow;
                 }
                 break;
             }
@@ -161,6 +164,8 @@ RT_PROGRAM void pathtrace_camera()
                 result_shading_normal += prd.shading_normal;
                 result_texture += prd.texture;
                 result_depth += prd.depth;
+                result_inShadow += prd.inShadow;
+
             }
 
             // Update ray data for the next path segment
@@ -180,6 +185,7 @@ RT_PROGRAM void pathtrace_camera()
     float3 normal_color = (result_shading_normal * 0.5) / num_samples + 0.5;
     float3 texture_color = result_texture / num_samples;
     float3 depth_color = make_float3(result_depth * 0.0005) / num_samples;
+    float3 shadow_color = make_float3(result_inShadow) / num_samples;
 
     if (frame_number > 1)
     {
@@ -193,7 +199,7 @@ RT_PROGRAM void pathtrace_camera()
         normal_buffer[launch_index] = make_float4(normal_color, 1.0f);
         texture_buffer[launch_index] = make_float4(texture_color, 1.0f);
         depth_buffer[launch_index] = make_float4(depth_color, 1.0f);
-        shadow_buffer[launch_index] = make_float4(pixel_color, 1.0f);
+        shadow_buffer[launch_index] = make_float4(shadow_color, 1.0f);
     }
 }
 
@@ -219,6 +225,7 @@ RT_PROGRAM void diffuseEmitter()
     current_prd.depth = t_hit;
     current_prd.radiance = current_prd.countEmitted ? emission_color : make_float3(0.f);
     current_prd.done = true;
+    current_prd.inShadow = false;
 }
 
 
@@ -278,14 +285,15 @@ RT_PROGRAM void diffuse()
         const float  LnDl  = dot( light.normal, L );
 
         // cast shadow ray
+        PerRayData_pathtrace_shadow shadow_prd;
+        shadow_prd.inShadow = false;
+        // Note: bias both ends of the shadow ray, in case the light is also present as geometry in the scene.
+        Ray shadow_ray = make_Ray( hitpoint, L, pathtrace_shadow_ray_type, scene_epsilon, Ldist - scene_epsilon );
+        rtTrace(top_object, shadow_ray, shadow_prd);
+        current_prd.inShadow = shadow_prd.inShadow;
+
         if ( nDl > 0.0f && LnDl > 0.0f )
         {
-            PerRayData_pathtrace_shadow shadow_prd;
-            shadow_prd.inShadow = false;
-            // Note: bias both ends of the shadow ray, in case the light is also present as geometry in the scene.
-            Ray shadow_ray = make_Ray( hitpoint, L, pathtrace_shadow_ray_type, scene_epsilon, Ldist - scene_epsilon );
-            rtTrace(top_object, shadow_ray, shadow_prd);
-
             if(!shadow_prd.inShadow)
             {
                 const float A = length(cross(light.v1, light.v2));
