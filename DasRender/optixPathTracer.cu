@@ -39,10 +39,12 @@ struct PerRayData_pathtrace
     float3 attenuation;
     float3 origin;
     float3 direction;
+    float3 shading_normal;
     unsigned int seed;
     int depth;
     int countEmitted;
     int done;
+    bool visibility;
 };
 
 struct PerRayData_pathtrace_shadow
@@ -94,6 +96,7 @@ RT_PROGRAM void pathtrace_camera()
     float2 jitter_scale = inv_screen / sqrt_num_samples;
     unsigned int samples_per_pixel = sqrt_num_samples*sqrt_num_samples;
     float3 result = make_float3(0.0f);
+    float3 result_shading_normal = make_float3(0.0f);
 
     unsigned int seed = tea<16>(screen.x*launch_index.y+launch_index.x, frame_number);
     do 
@@ -112,6 +115,7 @@ RT_PROGRAM void pathtrace_camera()
         PerRayData_pathtrace prd;
         prd.result = make_float3(0.f);
         prd.attenuation = make_float3(1.f);
+        prd.shading_normal = make_float3(0.0f);
         prd.countEmitted = true;
         prd.done = false;
         prd.seed = seed;
@@ -128,6 +132,9 @@ RT_PROGRAM void pathtrace_camera()
             {
                 // We have hit the background or a luminaire
                 prd.result += prd.radiance * prd.attenuation;
+                if(prd.depth == 0){
+                    result_shading_normal += prd.shading_normal;
+                }
                 break;
             }
 
@@ -142,6 +149,9 @@ RT_PROGRAM void pathtrace_camera()
 
             prd.depth++;
             prd.result += prd.radiance * prd.attenuation;
+            if(prd.depth == 1){
+                result_shading_normal += prd.shading_normal;
+            }
 
             // Update ray data for the next path segment
             ray_origin = prd.origin;
@@ -155,24 +165,21 @@ RT_PROGRAM void pathtrace_camera()
     //
     // Update the output buffer
     //
-    float3 pixel_color = result/(sqrt_num_samples*sqrt_num_samples);
+    float3 pixel_color = result/(sqrt_num_samples * sqrt_num_samples);
+    float3 normal_color = (result_shading_normal * 0.5)/(sqrt_num_samples * sqrt_num_samples) + 0.5;
 
     if (frame_number > 1)
     {
         float a = 1.0f / (float)frame_number;
         float3 old_color = make_float3(output_buffer[launch_index]);
         output_buffer[launch_index] = make_float4( lerp( old_color, pixel_color, a ), 1.0f );
-        depth_buffer[launch_index] = make_float4( lerp( old_color, pixel_color, a ), 1.0f );
-        texture_buffer[launch_index] = make_float4( lerp( old_color, pixel_color, a ), 1.0f );
-        normal_buffer[launch_index] = make_float4( lerp( old_color, pixel_color, a ), 1.0f );
-        shadow_buffer[launch_index] = make_float4( lerp( old_color, pixel_color, a ), 1.0f );
     }
     else
     {
         output_buffer[launch_index] = make_float4(pixel_color, 1.0f);
         depth_buffer[launch_index] = make_float4(pixel_color, 1.0f);
         texture_buffer[launch_index] = make_float4(pixel_color, 1.0f);
-        normal_buffer[launch_index] = make_float4(pixel_color, 1.0f);
+        normal_buffer[launch_index] = make_float4(normal_color, 1.0f);
         shadow_buffer[launch_index] = make_float4(pixel_color, 1.0f);
     }
 }
@@ -185,9 +192,16 @@ RT_PROGRAM void pathtrace_camera()
 //-----------------------------------------------------------------------------
 
 rtDeclareVariable(float3,        emission_color, , );
+rtDeclareVariable(float3,     diffuse_color, , );
+rtDeclareVariable(float3,     geometric_normal, attribute geometric_normal, );
+rtDeclareVariable(float3,     shading_normal,   attribute shading_normal, );
+rtDeclareVariable(optix::Ray, ray,              rtCurrentRay, );
+rtDeclareVariable(float,      t_hit,            rtIntersectionDistance, );
 
 RT_PROGRAM void diffuseEmitter()
 {
+    float3 world_shading_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
+    current_prd.shading_normal = world_shading_normal; 
     current_prd.radiance = current_prd.countEmitted ? emission_color : make_float3(0.f);
     current_prd.done = true;
 }
@@ -199,16 +213,10 @@ RT_PROGRAM void diffuseEmitter()
 //
 //-----------------------------------------------------------------------------
 
-rtDeclareVariable(float3,     diffuse_color, , );
-rtDeclareVariable(float3,     geometric_normal, attribute geometric_normal, );
-rtDeclareVariable(float3,     shading_normal,   attribute shading_normal, );
-rtDeclareVariable(optix::Ray, ray,              rtCurrentRay, );
-rtDeclareVariable(float,      t_hit,            rtIntersectionDistance, );
-
-
 RT_PROGRAM void diffuse()
 {
     float3 world_shading_normal   = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
+    current_prd.shading_normal = world_shading_normal;
     float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
     float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
 
