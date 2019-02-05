@@ -40,6 +40,7 @@ struct PerRayData_pathtrace
     float3 origin;
     float3 direction;
     float3 shading_normal;
+    float depth;
     unsigned int seed;
     int bounce;
     int countEmitted;
@@ -97,6 +98,7 @@ RT_PROGRAM void pathtrace_camera()
     unsigned int samples_per_pixel = sqrt_num_samples*sqrt_num_samples;
     float3 result = make_float3(0.0f);
     float3 result_shading_normal = make_float3(0.0f);
+    float result_depth = 0.0f;
 
     unsigned int seed = tea<16>(screen.x*launch_index.y+launch_index.x, frame_number);
     do 
@@ -116,6 +118,7 @@ RT_PROGRAM void pathtrace_camera()
         prd.result = make_float3(0.f);
         prd.attenuation = make_float3(1.f);
         prd.shading_normal = make_float3(0.0f);
+        prd.depth = 0.0f;
         prd.countEmitted = true;
         prd.done = false;
         prd.seed = seed;
@@ -134,6 +137,7 @@ RT_PROGRAM void pathtrace_camera()
                 prd.result += prd.radiance * prd.attenuation;
                 if(prd.bounce == 0){
                     result_shading_normal += prd.shading_normal;
+                    result_depth += prd.depth;
                 }
                 break;
             }
@@ -151,6 +155,7 @@ RT_PROGRAM void pathtrace_camera()
             prd.result += prd.radiance * prd.attenuation;
             if(prd.bounce == 1){
                 result_shading_normal += prd.shading_normal;
+                result_depth += prd.depth;
             }
 
             // Update ray data for the next path segment
@@ -165,8 +170,10 @@ RT_PROGRAM void pathtrace_camera()
     //
     // Update the output buffer
     //
-    float3 pixel_color = result/(sqrt_num_samples * sqrt_num_samples);
-    float3 normal_color = (result_shading_normal * 0.5)/(sqrt_num_samples * sqrt_num_samples) + 0.5;
+    float num_samples = sqrt_num_samples * sqrt_num_samples;
+    float3 pixel_color = result / num_samples;
+    float3 normal_color = (result_shading_normal * 0.5) / num_samples + 0.5;
+    float3 depth_color = make_float3(result_depth * 0.0005) / num_samples;
 
     if (frame_number > 1)
     {
@@ -177,7 +184,7 @@ RT_PROGRAM void pathtrace_camera()
     else
     {
         output_buffer[launch_index] = make_float4(pixel_color, 1.0f);
-        depth_buffer[launch_index] = make_float4(pixel_color, 1.0f);
+        depth_buffer[launch_index] = make_float4(depth_color, 1.0f);
         texture_buffer[launch_index] = make_float4(pixel_color, 1.0f);
         normal_buffer[launch_index] = make_float4(normal_color, 1.0f);
         shadow_buffer[launch_index] = make_float4(pixel_color, 1.0f);
@@ -202,6 +209,7 @@ RT_PROGRAM void diffuseEmitter()
 {
     float3 world_shading_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
     current_prd.shading_normal = world_shading_normal; 
+    current_prd.depth = t_hit;
     current_prd.radiance = current_prd.countEmitted ? emission_color : make_float3(0.f);
     current_prd.done = true;
 }
@@ -217,6 +225,7 @@ RT_PROGRAM void diffuse()
 {
     float3 world_shading_normal   = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
     current_prd.shading_normal = world_shading_normal;
+    current_prd.depth = t_hit;
     float3 world_geometric_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
     float3 ffnormal = faceforward( world_shading_normal, -ray.direction, world_geometric_normal );
 
