@@ -182,9 +182,9 @@ RT_PROGRAM void pathtrace_camera()
     //
     float num_samples = sqrt_num_samples * sqrt_num_samples;
     float3 pixel_color = result / num_samples;
-    float3 normal_color = (result_shading_normal * 0.5) / num_samples + 0.5;
+    float3 normal_color = result_shading_normal / num_samples;
     float3 texture_color = result_texture / num_samples;
-    float3 depth_color = make_float3(result_depth * 0.0005) / num_samples;
+    float3 depth_color = make_float3(result_depth) / num_samples;
     float3 shadow_color = make_float3(result_inShadow) / num_samples;
 
     if (frame_number > 1)
