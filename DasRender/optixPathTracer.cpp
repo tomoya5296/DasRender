@@ -57,6 +57,7 @@
 #include <stdint.h>
 
 #include "buffers.h"
+#include "binaryio.h"
 
 using namespace optix;
 
@@ -646,11 +647,9 @@ int main( int argc, char** argv )
             updateCamera();
             context->launch( 0, width, height );
 			Buffers buffers = getOutputsBuffers();
-			sutil::displayBufferPPM((out_file + "_output.ppm").c_str(), buffers.output, false);
-			sutil::displayBufferPPM((out_file + "_depth.ppm").c_str(), buffers.depth, false);
-			sutil::displayBufferPPM((out_file + "_texture.ppm").c_str(), buffers.texture, false);
-			sutil::displayBufferPPM((out_file + "_normal.ppm").c_str(), buffers.normal, false);
-			sutil::displayBufferPPM((out_file + "_shadow.ppm").c_str(), buffers.shadow, false);
+			buffers.displayBuffers(out_file);
+			buffers.saveBins(out_file);
+			buffers.saveCompressedBin(out_file);
             destroyContext();
         }
 
