@@ -671,7 +671,7 @@ int main( int argc, char** argv )
 				updateCamera();
 				context->launch(0, width, height);
 				Buffers buffers = getOutputsBuffers();
-				buffers.displayBuffers(out_file);
+				//buffers.displayBuffers(out_file);
 				buffers.saveBins(out_file);
 				destroyContext();
 			}

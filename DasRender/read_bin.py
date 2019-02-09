@@ -4,10 +4,10 @@ import numpy as np
 import argparse
 import h5py
 import os
+import const
+import inspect
+import copy
 
-outputs_dir = "../output/"
-scenename = "cornellbox/"
-spp_counts = np.array([1, 1, 1, 1, 2, 2, 2, 4, 4, 8, 8, 16, 1024])
 
 class ByteIO:
 	def __init__(self, name, mode):
@@ -67,14 +67,12 @@ def ensure_dir(dir_path):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-def makehdf(src_dir, src_scene):
-	output_img  = array_rgb(src_dir + src_scene + "output.bin")
-	depth_img   = array_rgb(src_dir + src_scene + "depth.bin")
-	texture_img = array_rgb(src_dir + src_scene + "texture.bin")
-	normal_img  = array_rgb(src_dir + src_scene + "normal.bin")
-	shadow_img  = array_rgb(src_dir + src_scene + "shadow.bin")
-
-	# print(output_img.rgb)
+def make_compressed_result(src_dir):
+	output_img  = array_rgb(src_dir + "output.bin")
+	depth_img   = array_rgb(src_dir + "depth.bin")
+	texture_img = array_rgb(src_dir + "texture.bin")
+	normal_img  = array_rgb(src_dir + "normal.bin")
+	shadow_img  = array_rgb(src_dir + "shadow.bin")
 
 	compressed_result = np.append(output_img.rgb, depth_img.rgb, axis=0)
 	compressed_result = np.delete(compressed_result, np.s_[-2:], 0)
@@ -83,39 +81,37 @@ def makehdf(src_dir, src_scene):
 	compressed_result = np.append(compressed_result, shadow_img.rgb, axis=0)
 	compressed_result = np.delete(compressed_result, np.s_[-2:], 0)
 
-	# hd5f_dir = src_dir + "hdf5s/"
-	# ensure_dir(hd5f_dir)
-	hd5f_name = src_dir + src_scene + "example.hdf5"
+	return compressed_result
 
-	#create thr  hdf5 file
-	fw = h5py.File(hd5f_name, "w")
-	fw.attrs['spp_count'] = [1, 2]
-	fw.attrs['layers_size'] = [11, 11]
-	fw.create_dataset(src_scene, data=compressed_result)
-	fw.close()   # be CERTAIN to close the file
+def makehdf(outputs_dir, src_scene):
 
+	#load results
+    index  = 0
+    layers_size = copy.deepcopy(const.layers_size)
+    layers_size_accum = np.cumsum(layers_size)
+    layers_size_accum = np.insert(layers_size_accum, 0, 0)
+
+    compressed_results = np.empty((layers_size_accum[-1], const.img_size, const.img_size))
+    for spp in const.spp_counts:
+        output_dir = outputs_dir + src_scene + str(spp) + "spp_" + str(index) + "/"
+        if not os.path.exists(output_dir):
+            print(output_dir + "doesn't exist")
+            exit()
+        
+        compressed_result = make_compressed_result(output_dir)
+        compressed_results[ layers_size_accum[index] : layers_size_accum[index] + layers_size[index] \
+        ,:,:] = compressed_result
+        print(spp, index)
+        index += 1
+
+	# #make hd5f results
+    hd5f_name = outputs_dir + src_scene + "results.hdf5"
+    fw = h5py.File(hd5f_name, "w")	
+    fw.attrs["spp_count"] = const.spp_counts
+    fw.attrs["layers_size"] = const.layers_size
+    fw.create_dataset(src_scene, data=compressed_results)
+    fw.close()   # be CERTAIN to close the file
 	
-	# fr = h5py.File(hd5f_name, "r")
-	# renders = list(fr)
-
-	# spp_map_per_file = {}
-
-	# print(renders)
-	# if "spp_count" in fr.attrs:
-	# 	spp_counts = (fr.attrs['spp_count'])
-	# 	layers_size = fr.attrs['layers_size']
-	# else:
-	# 	assert False
-	
-	# print("spp_counts", spp_counts)
-	# print("layers_size", layers_size)
-
-	# layers_size = np.insert(layers_size, 0, 0)
-	# layers_size_accum = np.cumsum(layers_size)
-
-	# print("layers_size", layers_size)
-	# print("layers_size_accum", layers_size_accum)
- 
 def bin2png(dir, scene):
 	src_img = array_rgb(dir + scene + "_output.bin")
 	height = src_img.height
@@ -130,11 +126,9 @@ def bin2png(dir, scene):
 
 
 if __name__ == '__main__':
-	# parser = argparse.ArgumentParser(
-	# 	prog = 'read_bin.py',
-	# 	description ='Read bin hdr file and save the png image'
-	# 	)
-	# parser.add_argument('src_bin', help = 'input file')
-	# args = parser.parse_args()
+	parser = argparse.ArgumentParser(
+		prog = 'read_bin.py',
+		description ='Read bin hdr files and save the hdf5 file'
+		)
 
-	makehdf(outputs_dir, scenename)
+	makehdf(const.outputs_dir, const.scenename)
