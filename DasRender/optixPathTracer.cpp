@@ -585,6 +585,7 @@ void printUsageAndExit( const std::string& argv0 )
         "  -f | --file               Save single frame to file and exit.\n"
 		"  -n | --nopbo              Disable GL interop for display buffer.\n"
 		"  -s | --spp                Sample per pixel num,.\n"
+		"  -i | --id				 index for output name,.\n"
         "App Keystrokes:\n"
         "  q  Quit\n" 
         "  s  Save image to '" << SAMPLE_NAME << ".ppm'\n"
@@ -598,6 +599,7 @@ int main( int argc, char** argv )
  {
     std::string out_file;
 	int n_samples = 4;
+	int id = 0;
 
     for( int i=1; i<argc; ++i )
     {
@@ -627,6 +629,15 @@ int main( int argc, char** argv )
 			}
 			else {
 				std::cerr << "Option -s or --spp'" << arg << "' requires positive integer.\n";
+				printUsageAndExit(argv[0]);
+			}
+		}
+		else if (arg == "-i" || arg == "--index") {
+			if (atoi(argv[++i]) != 0) {
+				id = atoi(argv[i]);
+			}
+			else {
+				std::cerr << "Option -i or --id'" << arg << "' requires positive integer.\n";
 				printUsageAndExit(argv[0]);
 			}
 		}
@@ -660,8 +671,8 @@ int main( int argc, char** argv )
 				updateCamera();
 				context->launch(0, width, height);
 				Buffers buffers = getOutputsBuffers();
-				buffers.displayBuffers(out_file);
-				buffers.saveBins(out_file);
+				buffers.displayBuffers(out_file + std::to_string(n_samples) +"spp_" + std::to_string(id) + "_");
+				buffers.saveBins(out_file + std::to_string(n_samples) + "spp_" + std::to_string(id) + "_");
 				destroyContext();
 			}
 
