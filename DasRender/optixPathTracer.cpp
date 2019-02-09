@@ -55,6 +55,7 @@
 #include <cstring>
 #include <iostream>
 #include <stdint.h>
+#include <cstdlib>
 
 #include "buffers.h"
 #include "binaryio.h"
@@ -75,7 +76,6 @@ uint32_t       height = 512;
 bool           use_pbo = true;
 
 int            frame_number = 1;
-int            sqrt_num_samples = 2;
 int            rr_begin_bounce = 1;
 Program        pgram_intersection = 0;
 Program        pgram_bounding_box = 0;
@@ -103,7 +103,7 @@ Buffer getOutputBuffer();
 Buffers & getOutputsBuffers();
 void destroyContext();
 void registerExitHandler();
-void createContext();
+void createContext(const int sample_num);
 void loadGeometry();
 void setupCamera();
 void updateCamera();
@@ -200,7 +200,7 @@ GeometryInstance createParallelogram(
 }
 
 
-void createContext()
+void createContext(const int num_samples)
 {
     context = Context::create();
     context->setRayTypeCount( 2 );
@@ -229,7 +229,7 @@ void createContext()
     context->setExceptionProgram( 0, context->createProgramFromPTXString( ptx, "exception" ) );
     context->setMissProgram( 0, context->createProgramFromPTXString( ptx, "miss" ) );
 
-    context[ "sqrt_num_samples" ]->setUint( sqrt_num_samples );
+    context[ "num_samples" ]->setUint(num_samples);
     context[ "bad_color"        ]->setFloat( 1000000.0f, 0.0f, 1000000.0f ); // Super magenta to make sure it doesn't get averaged out in the progressive rendering.
     context[ "bg_color"         ]->setFloat( make_float3(0.0f) );
 }
@@ -583,7 +583,8 @@ void printUsageAndExit( const std::string& argv0 )
         "App Options:\n"
         "  -h | --help               Print this usage message and exit.\n"
         "  -f | --file               Save single frame to file and exit.\n"
-        "  -n | --nopbo              Disable GL interop for display buffer.\n"
+		"  -n | --nopbo              Disable GL interop for display buffer.\n"
+		"  -s | --spp                Sample per pixel num,.\n"
         "App Keystrokes:\n"
         "  q  Quit\n" 
         "  s  Save image to '" << SAMPLE_NAME << ".ppm'\n"
@@ -596,6 +597,8 @@ void printUsageAndExit( const std::string& argv0 )
 int main( int argc, char** argv )
  {
     std::string out_file;
+	int n_samples = 4;
+
     for( int i=1; i<argc; ++i )
     {
         const std::string arg( argv[i] );
@@ -606,17 +609,27 @@ int main( int argc, char** argv )
         }
         else if( arg == "-f" || arg == "--file"  )
         {
-            if( i == argc-1 )
-            {
-                std::cerr << "Option '" << arg << "' requires additional argument.\n";
-                printUsageAndExit( argv[0] );
-            }
+            //if( i == argc-1 )
+            //{
+            //    std::cerr << "Option '" << arg << "' requires additional argument.\n";
+            //    printUsageAndExit( argv[0] );
+            //}
             out_file = argv[++i];
         }
         else if( arg == "-n" || arg == "--nopbo"  )
         {
             use_pbo = false;
         }
+		else if (arg == "-s" || arg == "--spp")
+		{
+			if (atoi(argv[++i]) != 0) {
+				n_samples = atoi(argv[i]);
+			}
+			else {
+				std::cerr << "Option -s or --spp'" << arg << "' requires positive integer.\n";
+				printUsageAndExit(argv[0]);
+			}
+		}
         else
         {
             std::cerr << "Unknown option '" << arg << "'\n";
@@ -624,37 +637,36 @@ int main( int argc, char** argv )
         }
     }
 
-    try
-    {
-        glutInitialize( &argc, argv );
+		try
+		{
+			glutInitialize(&argc, argv);
 
 #ifndef __APPLE__
-        glewInit();
+			glewInit();
 #endif
 
-        createContext();
-        setupCamera();
-        loadGeometry();
+			createContext(n_samples);
+			setupCamera();
+			loadGeometry();
 
-        context->validate();
+			context->validate();
 
-        if ( out_file.empty() )
-        {
-            glutRun();
-        }
-        else
-        {
-            updateCamera();
-            context->launch( 0, width, height );
-			Buffers buffers = getOutputsBuffers();
-			buffers.displayBuffers(out_file);
-			buffers.saveBins(out_file);
-			buffers.saveCompressedBin(out_file);
-            destroyContext();
-        }
+			if (out_file.empty())
+			{
+				glutRun();
+			}
+			else
+			{
+				updateCamera();
+				context->launch(0, width, height);
+				Buffers buffers = getOutputsBuffers();
+				buffers.displayBuffers(out_file);
+				buffers.saveBins(out_file);
+				destroyContext();
+			}
 
-        return 0;
-    }
-    SUTIL_CATCH( context->get() )
+			return 0;
+		}
+		SUTIL_CATCH(context->get())
 }
 

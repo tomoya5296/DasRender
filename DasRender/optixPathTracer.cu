@@ -75,7 +75,7 @@ rtDeclareVariable(float3,        V, , );
 rtDeclareVariable(float3,        W, , );
 rtDeclareVariable(float3,        bad_color, , );
 rtDeclareVariable(unsigned int,  frame_number, , );
-rtDeclareVariable(unsigned int,  sqrt_num_samples, , );
+rtDeclareVariable(unsigned int,  num_samples, , );
 rtDeclareVariable(unsigned int,  rr_begin_bounce, , );
 rtDeclareVariable(unsigned int,  pathtrace_ray_type, , );
 rtDeclareVariable(unsigned int,  pathtrace_shadow_ray_type, , );
@@ -95,8 +95,8 @@ RT_PROGRAM void pathtrace_camera()
     float2 inv_screen = 1.0f/make_float2(screen) * 2.f;
     float2 pixel = (make_float2(launch_index)) * inv_screen - 1.f;
 
-    float2 jitter_scale = inv_screen / sqrt_num_samples;
-    unsigned int samples_per_pixel = sqrt_num_samples*sqrt_num_samples;
+    float2 jitter_scale = inv_screen / (sqrt(float(num_samples)));
+    unsigned int samples_per_pixel = num_samples;
     float3 result = make_float3(0.0f);
     float3 result_shading_normal = make_float3(0.0f);
     float3 result_texture = make_float3(0.0f);
@@ -109,8 +109,8 @@ RT_PROGRAM void pathtrace_camera()
         //
         // Sample pixel using jittering
         //
-        unsigned int x = samples_per_pixel%sqrt_num_samples;
-        unsigned int y = samples_per_pixel/sqrt_num_samples;
+        unsigned int x = samples_per_pixel%int(sqrt(float(num_samples)));
+        unsigned int y = samples_per_pixel/int(sqrt(float(num_samples)));
         float2 jitter = make_float2(x-rnd(seed), y-rnd(seed));
         float2 d = pixel + jitter*jitter_scale;
         float3 ray_origin = eye;
@@ -180,7 +180,6 @@ RT_PROGRAM void pathtrace_camera()
     //
     // Update the output buffer
     //
-    float num_samples = sqrt_num_samples * sqrt_num_samples;
     float3 pixel_color = result / num_samples;
     float3 normal_color = result_shading_normal / num_samples;
     float3 texture_color = result_texture / num_samples;
