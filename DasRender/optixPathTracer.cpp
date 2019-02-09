@@ -632,8 +632,8 @@ int main( int argc, char** argv )
 				printUsageAndExit(argv[0]);
 			}
 		}
-		else if (arg == "-i" || arg == "--index") {
-			if (atoi(argv[++i]) != 0) {
+		else if (arg == "-i" || arg == "--id") {
+			if (atoi(argv[++i]) >= 0) {
 				id = atoi(argv[i]);
 			}
 			else {
@@ -671,8 +671,8 @@ int main( int argc, char** argv )
 				updateCamera();
 				context->launch(0, width, height);
 				Buffers buffers = getOutputsBuffers();
-				buffers.displayBuffers(out_file + std::to_string(n_samples) +"spp_" + std::to_string(id) + "_");
-				buffers.saveBins(out_file + std::to_string(n_samples) + "spp_" + std::to_string(id) + "_");
+				buffers.displayBuffers(out_file);
+				buffers.saveBins(out_file);
 				destroyContext();
 			}
 

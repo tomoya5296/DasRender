@@ -5,7 +5,7 @@ import argparse
 import h5py
 import os
 
-outputs_dir = "C:/Users/Tomoya/Rendering/DasRender/output/"
+outputs_dir = "../output/"
 scenename = "cornellbox/"
 spp_counts = np.array([1, 1, 1, 1, 2, 2, 2, 4, 4, 8, 8, 16, 1024])
 
@@ -137,9 +137,4 @@ if __name__ == '__main__':
 	# parser.add_argument('src_bin', help = 'input file')
 	# args = parser.parse_args()
 
-	#makehdf(outputs_dir, scenename)
-	for spp in spp_counts:
-		
-		
-
-
+	makehdf(outputs_dir, scenename)
