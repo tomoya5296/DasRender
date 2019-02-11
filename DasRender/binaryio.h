@@ -21,22 +21,15 @@
 using namespace optix;
 
 void saveBin(const float *Pix, const char *fname,
-	const int wid, const int hgt,const int chan, bool isapp = false)
+	const int wid, const int hgt,const int chan)
 {
 	if (Pix == NULL || wid < 1 || hgt < 1)
 		throw Exception("Image is ill-formed. Not saving");
 
 	if (chan != 1 && chan != 3 && chan != 4)
 		throw Exception("Attempting to save image with channel count != 1, 3, or 4.");
-
-	std::ofstream OutFile;
-	if (isapp) {
-		OutFile = std::ofstream(fname, std::ios::app| std::ios::binary);
-	}
-	else {
-		OutFile = std::ofstream(fname, std::ios::out | std::ios::binary);
-	}
-
+	
+	std::ofstream OutFile(fname, std::ios::out | std::ios::binary);
 	if (!OutFile.is_open())
 		throw Exception("Could not open file for SaveBIN");
 
@@ -53,7 +46,7 @@ namespace binaryio
 
 	//TODO Implement Instream
 
-	void save3dBinary(const char* filename, Buffer buffer_, bool isapp = false) {
+	void save3dBinary(const char* filename, Buffer buffer_) {
 		GLsizei width, height;
 		RTsize buffer_width, buffer_height;
 		RTbuffer buffer = buffer_->get();
@@ -137,13 +130,13 @@ namespace binaryio
 			break;
 		}
 
-		saveBin(&pix[0], filename, width, height, 3, isapp);
+		saveBin(&pix[0], filename, width, height, 3);
 
 		// Now unmap the buffer
 		RT_CHECK_ERROR(rtBufferUnmap(buffer));
 	}
 
-	void save1dBinary(const char* filename, Buffer buffer_, bool isapp = false) {
+	void save1dBinary(const char* filename, Buffer buffer_) {
 		GLsizei width, height;
 		RTsize buffer_width, buffer_height;
 		RTbuffer buffer = buffer_->get();
@@ -230,7 +223,7 @@ namespace binaryio
 			break;
 		}
 
-		saveBin(&pix[0], filename, width, height, 1, isapp);
+		saveBin(&pix[0], filename, width, height, 1);
 
 		// Now unmap the buffer
 		RT_CHECK_ERROR(rtBufferUnmap(buffer));

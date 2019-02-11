@@ -32,11 +32,11 @@ public:
 	}
 
 	void saveCompressedBin(const std::string &out_file) {
-		binaryio::save3dBinary((out_file + "compressed.bin").c_str(), output,  false);
-		binaryio::save3dBinary((out_file + "compressed.bin").c_str(), depth,   true);
-		binaryio::save3dBinary((out_file + "compressed.bin").c_str(), texture, true);
-		binaryio::save3dBinary((out_file + "compressed.bin").c_str(), normal,  true);
-		binaryio::save3dBinary((out_file + "compressed.bin").c_str(), shadow,  true);
+		binaryio::save3dBinary((out_file + "compressed.bin").c_str(), output);
+		binaryio::save3dBinary((out_file + "compressed.bin").c_str(), depth);
+		binaryio::save3dBinary((out_file + "compressed.bin").c_str(), texture);
+		binaryio::save3dBinary((out_file + "compressed.bin").c_str(), normal);
+		binaryio::save3dBinary((out_file + "compressed.bin").c_str(), shadow);
 	}
 
 	Buffer output;
