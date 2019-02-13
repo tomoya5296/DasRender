@@ -321,6 +321,91 @@ RT_PROGRAM void shadow()
     rtTerminateRay();
 }
 
+//
+// Dielectric surface shader
+//
+rtDeclareVariable(float3,       cutoff_color, , );
+rtDeclareVariable(float,        fresnel_exponent, , );
+rtDeclareVariable(float,        fresnel_minimum, , );
+rtDeclareVariable(float,        fresnel_maximum, , );
+rtDeclareVariable(float,        refraction_index, , );
+rtDeclareVariable(int,          refraction_maxdepth, , );
+rtDeclareVariable(int,          reflection_maxdepth, , );
+rtDeclareVariable(float3,       refraction_color, , );
+rtDeclareVariable(float3,       reflection_color, , );
+rtDeclareVariable(float3,       extinction_constant, , );
+
+
+RT_PROGRAM void glass_closest_hit_radiance(){
+
+    float3 world_shading_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
+    current_prd.shading_normal = world_shading_normal;
+    current_prd.texture =  reflection_color;
+    current_prd.depth = t_hit;
+
+    float3 hitpoint = ray.origin + t_hit * ray.direction;
+    current_prd.origin = hitpoint;
+
+    float reflection = 1.0f;
+    float3 result = make_float3(0.0f);
+
+    float cos_theta = dot(ray.direction, world_shading_normal);
+
+    float3 t;
+    if( refract(t, ray.direction, world_shading_normal, refraction_index) ){
+        //check for external or internal reflections
+        if(cos_theta < 0.0f)//internal
+          cos_theta = -cos_theta;
+        else//external
+          cos_theta = dot(t, world_shading_normal);
+
+        reflection = fresnel_schlick(cos_theta, fresnel_exponent, fresnel_minimum, fresnel_maximum);
+
+        float probability = 0.25 + 0.5 * reflection;
+        if(rnd(current_prd.seed) < probability){
+          float3 R = reflect(ray.direction, world_shading_normal );
+          current_prd.attenuation = current_prd.attenuation * reflection * reflection_color / probability;
+          current_prd.direction = R;
+        }else{
+          current_prd.attenuation = current_prd.attenuation * (1.0f - reflection) * refraction_color / (1.0f - probability);
+          current_prd.direction = t;
+        }
+    }
+    else{ //total reflection
+      float3 R = reflect(ray.direction, world_shading_normal );
+      current_prd.attenuation = current_prd.attenuation * reflection * reflection_color;
+      current_prd.direction = R;
+    }
+
+    current_prd.countEmitted = false;
+
+    //
+    // Next event estimation (compute direct lighting).
+    //
+    unsigned int num_lights = lights.size();
+
+    for(int i = 0; i < num_lights; ++i)
+    {
+        // Choose random point on light
+        ParallelogramLight light = lights[i];
+        const float z1 = rnd(current_prd.seed);
+        const float z2 = rnd(current_prd.seed);
+        const float3 light_pos = light.corner + light.v1 * z1 + light.v2 * z2;
+
+        // Calculate properties of light sample (for area based pdf)
+        const float  Ldist = length(light_pos - hitpoint);
+        const float3 L     = normalize(light_pos - hitpoint);
+
+        // cast shadow ray
+        PerRayData_pathtrace_shadow shadow_prd;
+        shadow_prd.inShadow = false;
+        // Note: bias both ends of the shadow ray, in case the light is also present as geometry in the scene.
+        Ray shadow_ray = make_Ray( hitpoint, L, pathtrace_shadow_ray_type, scene_epsilon, Ldist - scene_epsilon );
+        rtTrace(top_object, shadow_ray, shadow_prd);
+        current_prd.inShadow = shadow_prd.inShadow;
+
+    }        
+}
 
 //-----------------------------------------------------------------------------
 //
