@@ -77,8 +77,11 @@ bool           use_pbo = true;
 
 int            frame_number = 1;
 int            rr_begin_bounce = 1;
+int            rr_max_bounce = 10;
 Program        pgram_intersection = 0;
 Program        pgram_bounding_box = 0;
+Program        sphere_intersection = 0;
+Program        sphere_bounding_box = 0;
 
 // Camera state
 float3         camera_up;
@@ -199,6 +202,21 @@ GeometryInstance createParallelogram(
     return gi;
 }
 
+GeometryInstance createSphere(const float3& origin, const float& radius)
+{
+	Geometry sphere = context->createGeometry();
+	sphere->setPrimitiveCount( 1u );
+	sphere->setIntersectionProgram(sphere_intersection);
+	sphere->setBoundingBoxProgram(sphere_bounding_box);
+
+	float4 sphere_loc = make_float4(origin, radius);
+	sphere["sphere"]->setFloat(sphere_loc);
+
+	GeometryInstance gi = context->createGeometryInstance();
+	gi->setGeometry(sphere);
+	return gi;
+}
+
 
 void createContext(const int num_samples)
 {
@@ -211,6 +229,7 @@ void createContext(const int num_samples)
     context[ "pathtrace_ray_type"             ]->setUint( 0u );
     context[ "pathtrace_shadow_ray_type"      ]->setUint( 1u );
     context[ "rr_begin_bounce"                 ]->setUint( rr_begin_bounce );
+    context[ "rr_max_bounce"                 ]->setUint( rr_max_bounce );
 
 	Buffer output = sutil::createOutputBuffer(context, RT_FORMAT_FLOAT4, width, height, use_pbo);
 	context["output_buffer"]->set(output);
@@ -266,6 +285,11 @@ void loadGeometry()
     Program diffuse_em = context->createProgramFromPTXString( ptx, "diffuseEmitter" );
     diffuse_light->setClosestHitProgram( 0, diffuse_em );
 
+	Material specular = context->createMaterial();
+	Program specular_ch = context->createProgramFromPTXString(ptx, "specular_closest_hit_radiance");
+	specular->setClosestHitProgram(0, specular_ch);
+	specular->setAnyHitProgram(1, diffuse_ah);
+
 	Material glass = context->createMaterial();
 	Program glass_ch = context->createProgramFromPTXString(ptx, "glass_closest_hit_radiance");
 	glass->setClosestHitProgram(0, glass_ch);
@@ -274,11 +298,11 @@ void loadGeometry()
 	glass["fresnel_exponent"]->setFloat(3.0f);
 	glass["fresnel_minimum"]->setFloat(0.1f);
 	glass["fresnel_maximum"]->setFloat(1.0f);
-	glass["refraction_index"]->setFloat(1.4f);
+	glass["refraction_index"]->setFloat(1.6f);
 	glass["refraction_color"]->setFloat(1.0f, 1.0f, 1.0f);
 	glass["reflection_color"]->setFloat(1.0f, 1.0f, 1.0f);
-	glass["refraction_maxdepth"]->setInt(100);
-	glass["reflection_maxdepth"]->setInt(100);
+	glass["refraction_maxdepth"]->setInt(10);
+	glass["reflection_maxdepth"]->setInt(10);
 	float3 extinction = make_float3(.80f, .89f, .75f);
 	glass["extinction_constant"]->setFloat(log(extinction.x), log(extinction.y), log(extinction.z));
 
@@ -286,6 +310,11 @@ void loadGeometry()
     ptx = sutil::getPtxString( SAMPLE_NAME, "parallelogram.cu" );
     pgram_bounding_box = context->createProgramFromPTXString( ptx, "bounds" );
     pgram_intersection = context->createProgramFromPTXString( ptx, "intersect" );
+
+	// Set up sphere programs
+	ptx = sutil::getPtxString(SAMPLE_NAME, "sphere.cu");
+	sphere_bounding_box = context->createProgramFromPTXString(ptx, "bounds");
+	sphere_intersection = context->createProgramFromPTXString(ptx, "intersect");
 
     // create geometry instances
     std::vector<GeometryInstance> gis;
@@ -325,30 +354,32 @@ void loadGeometry()
                                         make_float3( 0.0f, 548.8f, 0.0f ) ) );
     setMaterial(gis.back(), diffuse, "diffuse_color", red);
 
-	
+	gis.push_back(createSphere(make_float3(128.0f, 100.0f, 250.0f), 100.0f));
+	gis.back()->addMaterial(glass);
+	//setMaterial(gis.back(), diffuse, "diffuse_color", red);
 
- //   // Short block
- //   gis.push_back( createParallelogram( make_float3( 130.0f, 505.0f, 65.0f),
+    // Short block
+ //   gis.push_back( createParallelogram( make_float3( 130.0f, 455.0f, 65.0f),
  //                                       make_float3( -48.0f, 0.0f, 160.0f),
  //                                       make_float3( 160.0f, 0.0f, 49.0f) ) );
  //   setMaterial(gis.back(), glass, "diffuse_color", white);
- //   gis.push_back( createParallelogram( make_float3( 290.0f, 340.0f, 114.0f),
+ //   gis.push_back( createParallelogram( make_float3( 290.0f, 290.0f, 114.0f),
  //                                       make_float3( 0.0f, 165.0f, 0.0f),
  //                                       make_float3( -50.0f, 0.0f, 158.0f) ) );
  //   setMaterial(gis.back(), glass, "diffuse_color", white);
- //   gis.push_back( createParallelogram( make_float3( 130.0f, 340.0f, 65.0f),
+ //   gis.push_back( createParallelogram( make_float3( 130.0f, 290.0f, 65.0f),
  //                                       make_float3( 0.0f, 165.0f, 0.0f),
  //                                       make_float3( 160.0f, 0.0f, 49.0f) ) );
  //   setMaterial(gis.back(), glass, "diffuse_color", white);
- //   gis.push_back( createParallelogram( make_float3( 82.0f, 340.0f, 225.0f),
+ //   gis.push_back( createParallelogram( make_float3( 82.0f, 290.0f, 225.0f),
  //                                       make_float3( 0.0f, 165.0f, 0.0f),
  //                                       make_float3( 48.0f, 0.0f, -160.0f) ) );
  //   setMaterial(gis.back(), glass, "diffuse_color", white);
- //   gis.push_back( createParallelogram( make_float3( 240.0f, 340.0f, 272.0f),
+ //   gis.push_back( createParallelogram( make_float3( 240.0f, 290.0f, 272.0f),
  //                                       make_float3( 0.0f, 165.0f, 0.0f),
  //                                       make_float3( -158.0f, 0.0f, -47.0f) ) );
  //   setMaterial(gis.back(), glass, "diffuse_color", white);
-	//gis.push_back(createParallelogram(  make_float3(130.0f, 340.0f, 65.0f),
+	//gis.push_back(createParallelogram(  make_float3(130.0f, 290.0f, 65.0f),
 	//								    make_float3(-48.0f, 0.0f, 160.0f),
 	//								    make_float3(160.0f, 0.0f, 49.0f)));
 	//setMaterial(gis.back(), glass, "diffuse_color", white);

@@ -77,6 +77,7 @@ rtDeclareVariable(float3,        bad_color, , );
 rtDeclareVariable(unsigned int,  frame_number, , );
 rtDeclareVariable(unsigned int,  num_samples, , );
 rtDeclareVariable(unsigned int,  rr_begin_bounce, , );
+rtDeclareVariable(unsigned int,  rr_max_bounce, , );
 rtDeclareVariable(unsigned int,  pathtrace_ray_type, , );
 rtDeclareVariable(unsigned int,  pathtrace_shadow_ray_type, , );
 
@@ -120,10 +121,11 @@ RT_PROGRAM void pathtrace_camera()
         PerRayData_pathtrace prd;
         prd.result = make_float3(0.f);
         prd.attenuation = make_float3(1.f);
+        prd.radiance = make_float3(0.f);
         prd.shading_normal = make_float3(0.0f);
         prd.texture = make_float3(0.0f);
         prd.depth = 0.0f;
-        prd.countEmitted = true;
+        prd.countEmitted = false;
         prd.done = false;
         prd.seed = seed;
         prd.bounce = 0;
@@ -153,7 +155,7 @@ RT_PROGRAM void pathtrace_camera()
             if(prd.bounce >= rr_begin_bounce)
             {
                 float pcont = fmaxf(prd.attenuation);
-                if(rnd(prd.seed) >= pcont)
+                if(rnd(prd.seed) >= pcont || prd.bounce > rr_max_bounce )
                     break;
                 prd.attenuation /= pcont;
             }
@@ -165,7 +167,6 @@ RT_PROGRAM void pathtrace_camera()
                 result_texture += prd.texture;
                 result_depth += prd.depth;
                 result_inShadow += prd.inShadow;
-
             }
 
             // Update ray data for the next path segment
@@ -222,7 +223,7 @@ RT_PROGRAM void diffuseEmitter()
     current_prd.shading_normal = world_shading_normal;
     current_prd.texture =  make_float3(0.0);
     current_prd.depth = t_hit;
-    current_prd.radiance = current_prd.countEmitted ? emission_color : make_float3(0.f);
+    current_prd.radiance = current_prd.countEmitted ? make_float3(0.f) : emission_color;
     current_prd.done = true;
     current_prd.inShadow = false;
 }
@@ -261,11 +262,11 @@ RT_PROGRAM void diffuse()
     // NOTE: f/pdf = 1 since we are perfectly importance sampling lambertian
     // with cosine density.
     current_prd.attenuation = current_prd.attenuation * diffuse_color;
-    current_prd.countEmitted = false;
 
     //
     // Next event estimation (compute direct lighting).
     //
+    current_prd.countEmitted = true;
     unsigned int num_lights = lights.size();
     float3 result = make_float3(0.0f);
 
@@ -321,6 +322,23 @@ RT_PROGRAM void shadow()
     rtTerminateRay();
 }
 
+RT_PROGRAM void specular_closest_hit_radiance(){
+
+    float3 world_geo_normal   = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, geometric_normal ) );
+    float3 world_shading_normal = normalize( rtTransformNormal( RT_OBJECT_TO_WORLD, shading_normal ) );
+    float3 ffnormal     = faceforward( world_shading_normal, -ray.direction, world_geo_normal );
+    float3 hitpoint = ray.origin + t_hit * ray.direction;
+    float3 R = reflect(ray.direction, ffnormal );
+
+    current_prd.shading_normal = world_shading_normal;
+    current_prd.texture =  make_float3(1.0);
+    current_prd.depth = t_hit;
+
+    current_prd.origin = hitpoint;
+    current_prd.direction = R;
+    current_prd.countEmitted = false;
+}
+
 //
 // Dielectric surface shader
 //
@@ -344,7 +362,6 @@ RT_PROGRAM void glass_closest_hit_radiance(){
     current_prd.depth = t_hit;
 
     float3 hitpoint = ray.origin + t_hit * ray.direction;
-    current_prd.origin = hitpoint;
 
     float reflection = 1.0f;
     float3 result = make_float3(0.0f);
@@ -352,59 +369,59 @@ RT_PROGRAM void glass_closest_hit_radiance(){
     float cos_theta = dot(ray.direction, world_shading_normal);
 
     float3 t;
-    if( refract(t, ray.direction, world_shading_normal, refraction_index) ){
-        //check for external or internal reflections
-        if(cos_theta < 0.0f)//internal
-          cos_theta = -cos_theta;
-        else//external
-          cos_theta = dot(t, world_shading_normal);
+     if( refract(t, ray.direction, world_shading_normal, refraction_index) ){
+         //check for external or internal reflections
+         if(cos_theta < 0.0f)//internal
+           cos_theta = -cos_theta;
+         else//external
+           cos_theta = dot(t, world_shading_normal);
 
-        reflection = fresnel_schlick(cos_theta, fresnel_exponent, fresnel_minimum, fresnel_maximum);
+         reflection = fresnel_schlick(cos_theta, fresnel_exponent, fresnel_minimum, fresnel_maximum);
 
-        float probability = 0.25 + 0.5 * reflection;
-        if(rnd(current_prd.seed) < probability){
-          float3 R = reflect(ray.direction, world_shading_normal );
-          current_prd.attenuation = current_prd.attenuation * reflection * reflection_color / probability;
-          current_prd.direction = R;
-        }else{
-          current_prd.attenuation = current_prd.attenuation * (1.0f - reflection) * refraction_color / (1.0f - probability);
-          current_prd.direction = t;
-        }
-    }
-    else{ //total reflection
-      float3 R = reflect(ray.direction, world_shading_normal );
-      current_prd.attenuation = current_prd.attenuation * reflection * reflection_color;
-      current_prd.direction = R;
-    }
-
+         float probability = 0.25 + 0.5 * reflection;
+         if(rnd(current_prd.seed) < probability){
+             float3 R = reflect(ray.direction, world_shading_normal );
+             current_prd.origin = hitpoint + R * scene_epsilon;
+             current_prd.attenuation = current_prd.attenuation * reflection * reflection_color / probability;
+             current_prd.direction = R;
+         }else{
+             current_prd.origin = hitpoint + t * scene_epsilon;
+             current_prd.attenuation = current_prd.attenuation * (1.0f - reflection) * refraction_color / (1.0f - probability);
+             current_prd.direction = t;
+         }
+     }
+     else{ //total reflection
+           float3 R = reflect(ray.direction, world_shading_normal );
+           current_prd.origin = hitpoint + R * scene_epsilon;
+           current_prd.attenuation = current_prd.attenuation * reflection_color;
+           current_prd.direction = R;
+     }
     current_prd.countEmitted = false;
+    
+    //Compute direct lighting visibility.
+    
+    // unsigned int num_lights = lights.size();
 
-    //
-    // Next event estimation (compute direct lighting).
-    //
-    unsigned int num_lights = lights.size();
+    // for(int i = 0; i < num_lights; ++i)
+    // {
+    //     // Choose random point on light
+    //     ParallelogramLight light = lights[i];
+    //     const float z1 = rnd(current_prd.seed);
+    //     const float z2 = rnd(current_prd.seed);
+    //     const float3 light_pos = light.corner + light.v1 * z1 + light.v2 * z2;
 
-    for(int i = 0; i < num_lights; ++i)
-    {
-        // Choose random point on light
-        ParallelogramLight light = lights[i];
-        const float z1 = rnd(current_prd.seed);
-        const float z2 = rnd(current_prd.seed);
-        const float3 light_pos = light.corner + light.v1 * z1 + light.v2 * z2;
+    //     // Calculate properties of light sample (for area based pdf)
+    //     const float  Ldist = length(light_pos - hitpoint);
+    //     const float3 L     = normalize(light_pos - hitpoint);
 
-        // Calculate properties of light sample (for area based pdf)
-        const float  Ldist = length(light_pos - hitpoint);
-        const float3 L     = normalize(light_pos - hitpoint);
-
-        // cast shadow ray
-        PerRayData_pathtrace_shadow shadow_prd;
-        shadow_prd.inShadow = false;
-        // Note: bias both ends of the shadow ray, in case the light is also present as geometry in the scene.
-        Ray shadow_ray = make_Ray( hitpoint, L, pathtrace_shadow_ray_type, scene_epsilon, Ldist - scene_epsilon );
-        rtTrace(top_object, shadow_ray, shadow_prd);
-        current_prd.inShadow = shadow_prd.inShadow;
-
-    }        
+    //     // cast shadow ray
+    //     PerRayData_pathtrace_shadow shadow_prd;
+    //     shadow_prd.inShadow = false;//TODO fix
+    //     // Note: bias both ends of the shadow ray, in case the light is also present as geometry in the scene.
+    //     Ray shadow_ray = make_Ray( hitpoint, L, pathtrace_shadow_ray_type, scene_epsilon, Ldist - scene_epsilon );
+    //     rtTrace(top_object, shadow_ray, shadow_prd);
+    //     current_prd.inShadow = shadow_prd.inShadow;
+    // }        
 }
 
 //-----------------------------------------------------------------------------
