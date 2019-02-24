@@ -92,7 +92,7 @@ def makehdf(outputs_dir, src_scene):
     layers_size_accum = np.insert(layers_size_accum, 0, 0)
 
     compressed_results = np.empty((layers_size_accum[-1], const.img_size, const.img_size))
-    for spp in const.spp_counts:
+    for spp in const.spp_counts_render:
         output_dir = outputs_dir + src_scene + str(spp) + "spp_" + str(index) + "/"
         if not os.path.exists(output_dir):
             print(output_dir + "doesn't exist")
@@ -107,7 +107,7 @@ def makehdf(outputs_dir, src_scene):
 	# #make hd5f results
     hd5f_name = outputs_dir + src_scene + "results.hdf5"
     fw = h5py.File(hd5f_name, "w")	
-    fw.attrs["spp_count"] = const.spp_counts
+    fw.attrs["spp_count"] = const.spp_counts_hdf5
     fw.attrs["layers_size"] = const.layers_size
     fw.create_dataset(src_scene, data=compressed_results)
     fw.close()   # be CERTAIN to close the file

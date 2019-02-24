@@ -13,7 +13,7 @@ def main():
     exe_file_abspath = os.path.abspath(const.exe_file)
 
     index  = 0
-    for spp in const.spp_counts:
+    for spp in const.spp_counts_render:
         output_dir = const.outputs_dir + const.scenename + str(spp) + "spp_" + str(index) + "/"
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)

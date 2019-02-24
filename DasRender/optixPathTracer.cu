@@ -101,8 +101,8 @@ RT_PROGRAM void pathtrace_camera()
     float3 result = make_float3(0.0f);
     float3 result_shading_normal = make_float3(0.0f);
     float3 result_texture = make_float3(0.0f);
+    float3 result_inShadow = make_float3(0.0f);
     float result_depth = 0.0f;
-    bool result_inShadow = false;
 
     unsigned int seed = tea<16>(screen.x*launch_index.y+launch_index.x, frame_number);
     do 
@@ -146,7 +146,8 @@ RT_PROGRAM void pathtrace_camera()
                     result_shading_normal += prd.shading_normal;
                     result_texture += prd.texture;
                     result_depth += prd.depth;
-                    result_inShadow += prd.inShadow;
+                    float3 direct_color = prd.radiance * prd.attenuation;
+                    result_inShadow += make_float3(direct_color.x * 0.2126 + direct_color.y * 0.7152 + direct_color.z * 0.0722);
                 }
                 break;
             }
@@ -166,7 +167,9 @@ RT_PROGRAM void pathtrace_camera()
                 result_shading_normal += prd.shading_normal;
                 result_texture += prd.texture;
                 result_depth += prd.depth;
-                result_inShadow += prd.inShadow;
+                float3 direct_color = prd.radiance * prd.attenuation;
+                result_inShadow += make_float3(direct_color.x * 0.2126 + direct_color.y * 0.7152 + direct_color.z * 0.0722);
+                
             }
 
             // Update ray data for the next path segment
@@ -185,7 +188,7 @@ RT_PROGRAM void pathtrace_camera()
     float3 normal_color = result_shading_normal / num_samples;
     float3 texture_color = result_texture / num_samples;
     float3 depth_color = make_float3(result_depth) / num_samples;
-    float3 shadow_color = make_float3(result_inShadow) / num_samples;
+    float3 shadow_color = result_inShadow / num_samples;
 
     if (frame_number > 1)
     {
