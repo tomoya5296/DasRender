@@ -6,7 +6,7 @@
 *.ply
 *.tga
 *.ppm
-*.h5
+*.hdf5
 *~
 src/build
 src/bin
