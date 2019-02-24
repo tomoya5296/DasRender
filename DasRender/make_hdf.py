@@ -105,7 +105,7 @@ def makehdf(outputs_dir, src_scene):
         index += 1
 
 	# #make hd5f results
-    hd5f_name = outputs_dir + src_scene + "results.hdf5"
+    hd5f_name = outputs_dir + src_scene + "results.h5"
     fw = h5py.File(hd5f_name, "w")	
     fw.attrs["spp_count"] = const.spp_counts_hdf5
     fw.attrs["layers_size"] = const.layers_size
